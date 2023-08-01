@@ -1,14 +1,14 @@
 # Hướng dẫn đóng image CentOS7 với QEMU Guest Agent + cloud-init
 
-### Chú ý trong quá trình đóng images
+## Chú ý trong quá trình đóng images
 
-- KVM host đã được cài đặt sẵn sàng. [Cài đặt Môi trường để đóng images](Prepare.md)
+- KVM host đã được cài đặt sẵn sàng. [Cài đặt Môi trường để đóng images](01_KVM_install.md)
 - Đã có file iso của CentOS7
 - Sử dụng `Standard` với định dạng `ext4` cho phân vùng OS không sử dụng LVM.
 - Sử dụng công cụ virt-manager hoặc web-virt để kết nối tới console máy ảo
 - Phiên bản OpenStack sử dụng là Queens
 - Hướng dẫn bao gồm 2 phần chính: thực hiện trên máy ảo cài OS và thực hiện trên KVM Host
-- Time zone VietNam
+- Time zone Asia/Ho_Chi_Minh
 
 ----------------------
 
