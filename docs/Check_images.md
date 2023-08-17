@@ -1,6 +1,20 @@
-# Các bước kiểm tra Images cơ bản sau khi đóng Template
+# Các kiểm tra Images cơ bản sau khi đóng Template
 
-Chúng ta sẽ tạo VM từ Images này và kiểm tra 
+Chúng ta sẽ tạo VM từ Images và kiểm tra
+
+[Kiểm tra có thể tạo dung lượng min_size bao nhiêu (Dung lượng này = dung lượng file `qcow2` chúng ta tạo lúc đóng Images)](#b1-kiểm-tra-có-thể-tạo-dung-lượng-min_size-bao-nhiêu-dung-lượng-này--dung-lượng-file-qcow2-chúng-ta-tạo-lúc-đóng-images)
+
+[Kiểm tra khả năng tự động Extend của Volume](#b2-kiểm-tra-khả-năng-tự-động-extend-của-volume)
+
+[Kiểm tra truyền password qua cloud-init](#b3-kiểm-tra-truyền-password-qua-cloud-init)
+
+[Add thêm IP xem có nhận không](#b4-add-thêm-ip-xem-có-nhận-không)
+
+[Thử tính năng reset password qua nova](#b5-thử-tính-năng-reset-password-qua-nova)
+
+[Kiểm tra xem tab log của VM](#b6-kiểm-tra-xem-tab-log-của-vm)
+
+___
 
 ## B1: Kiểm tra có thể tạo dung lượng min_size bao nhiêu (Dung lượng này = dung lượng file `qcow2` chúng ta tạo lúc đóng Images)
 
@@ -16,6 +30,8 @@ Tạo VM với dung lượng lớn hơn min_size, sau khi tạo VM thì tiến h
 
 ## B3: Kiểm tra truyền password qua cloud-init 
 
+Hiện tại mới thực hiện được với image của linux
+
 Truyền cloud-init khi create VM, Login thử bằng password truyền vào xem có login được không 
 
 ![](../images/check_images/cloud-init.png)
@@ -27,21 +43,102 @@ Truyền cloud-init khi create VM, Login thử bằng password truyền vào xem
 ## B5: Thử tính năng reset password qua nova
 
 Để VM running và login vào Controller node sử dụng `nova set-password <VM_ID>` để set password cho VM xem có nhận password mới không 
+Lấy ID của VM
 
-Lấy ID của VM 
 ![](../images/check_images/id.png)
 
-Set paswd mới cho VM 
+Set paswd mới cho VM
 
 ![](../images/check_images/setpasswd.png)
 
-## B6: Kiểm tra xem tab log của VM 
+Trong trường hợp muốn reset password tài khoản root hay Administrator thông qua QEMU-guest-agent, thì trước đó image đã phải được gắn metadata os_type để OpenStack biết và gắn user cho câu lệnh.
+Trường os_type được set khi đứng sau cờ --property, có thể gắn cho image đã có sẵn với lệnh:
+
+```sh
+openstack image set --property os_type='linux-or-windows' <image-ID>
+```
+
+Gắn vào lúc tạo image:
+
+```sh
+openstack image create <name-image> --disk-format qcow2 --container-format bare --file <source-file> --share --min-disk 15 --property hw_qemu_guest_agent=yes --property os_distro=<windows or linux> --property os_type=<windows or linux>
+```
+
+Set-password cho VM:
+
+sử dụng nova:
+
+```sh
+nova set-password <vm-id or name>
+```
+
+Sử dụng openstack:
+
+```sh
+openstack server set --root-password <vm-id or name>
+```
+
+Nhập pass theo chỉ dẫn.
+
+
+### Trong khi set-password thì có 2 trường lỗi có thể xảy ra như sau
+
+
+1. ERROR (Conflict): Failed to set admin password on xxx because error setting admin password (HTTP 409) (Request-ID: req-xxx)
+
+Điều này cho thấy rằng không có tên người dùng tương ứng (mặc định) trong hệ thống OpenStack và máy ảo hiện tại. Cần phải xác nhận rằng thuộc tỉnh os_admin_user của máy chủ OpenStack và bên trong VM or image là giống nhau. Với OpenStack có 2 kiểu user mặc định là root cho linux và Administrator cho Windows, vì thế khi đặt lại password sẽ mặc định đặt lại cho 2 tài khoản này trên 2 dòng OS.
+
+2. ERROR (Conflict): QEMU guest agent is not enabled (HTTP 409) (Request-ID: req-xxx)
+
+Tình huống này cho thấy lỗi: hiện tại trên máy ảo qemu-guest-agent hoặc thuộc tính hw_gemu_guest_agent hư hỏng, kiểm tra và sửa đổi
+
+#### qemu-guest-agent kiểm tra
+
+1. Xác nhận rằng thuộc tính của VM là chính xác
+
+- Xác nhận trên VM được tạo ra
+
+```sh
+openstack server show <vm-name>
+```
+
+- Xác nhận trên image dùng để tạo VM
+
+```sh
+openstack image show <image-name> | grep qemu
+```
+
+Cả hai tồn tại hw_gemu_guest_agent='yes'
+
+2. Truy cập vào VM và xác nhận QEMU-guest-agent vẫn đang hoạt động bình thường
+
+- trên linux:
+
+```sh
+systemctl status qemu-guest-agent
+```
+
+- Trên windows: truy cập vào Service tìm trong list được liệt kê.
+
+- Thay đổi thuộc tính cho image với cờ --property
+
+openstack image set
+
+--property os_admin_user=Administrator <image-name or id>
+
+--property os_distro=windows --property os_type=windows
+
+Tham khảo thêm tại:
+
+<https://blog.csdn.net/q965844841qq/article/details/111467457>
+
+## B6: Kiểm tra xem tab log của VM
 
 Trong quá trình boot VM tiến hành truy cập tab `log` xem có log MV hiển thị không 
 
 ![](../images/check_images/log.png)
 
-## B7: Kiểm tra app của VM 
+## B7: Kiểm tra app của VM
 
 Bước này chúng ta kiểm tra hoạt động của các app trên VM sau khi running như DA, Plesk, WHM
 
@@ -53,6 +150,7 @@ yum install -y libguestfs || apt-get install -y libguestfs-tools
 ```
 
 Chỉnh sửa Images
+
 ```sh 
 root@nhcephbka02:/var/lib/libvirt/images# guestfish --rw -a  u16-qemuagent.img 
 
@@ -72,19 +170,21 @@ Type: 'help' for help on commands
 
 ```
 
-# Đổi thông tin DA sau khi tạo VM từ Template
+## Đổi thông tin DA sau khi tạo VM từ Template
 
-- Login vào VM 
-```sh 
+- Login vào VM
+
+```sh
 ssh root@<VM_IP>
 ```
 
-- Check IP Public server 
-```sh 
+- Check IP Public server
+
+```sh
 ip a
 ```
 
-- Chạy script change IP 
+- Chạy script change IP
 ```sh 
 cd /usr/local/directadmin/scripts
 ./ipswap.sh 192.168.122.36 <ip-public-server>
